@@ -2,7 +2,7 @@ services:
   - type: web
     name: imaplace-api
     runtime: node
-    repo: https://github.com/tu-usuario/imaplace-backend
+    repo: https://github.com/playok24/imaplace-backend
     plan: free
     branch: main
     buildCommand: npm install && npm run build
