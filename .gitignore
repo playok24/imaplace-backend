@@ -1,0 +1,13 @@
+node_modules/
+dist/
+.env
+*.apk
+*.log
+.DS_Store
+.expo/
+mobile/android/.gradle/
+mobile/android/build/
+mobile/android/app/build/
+mobile/android/.idea/
+mobile/android/local.properties
+mobile/android/captures/

@@ -1,0 +1,11 @@
+Error: listen EADDRINUSE: address already in use :::3000
+    at Server.setupListenHandle [as _listen2] (node:net:2008:16)
+    at listenInCluster (node:net:2065:12)
+    at Server.listen (node:net:2170:7)
+    at Object.<anonymous> (D:\IAS\Maps Interactive\server\src\index.ts:67:8)
+    at Module.<anonymous> (node:internal/modules/cjs/loader:1854:14)
+    at Module._compile (D:\IAS\Maps Interactive\server\node_modules\source-map-support\source-map-support.js:568:25)
+    at Module.m._compile (C:\Users\Gaston H\AppData\Local\Temp\ts-node-dev-hook-18024469815272426.js:69:33)
+    at node:internal/modules/cjs/loader:1985:10
+    at require.extensions..jsx.require.extensions..js (C:\Users\Gaston H\AppData\Local\Temp\ts-node-dev-hook-18024469815272426.js:114:20)
+    at require.extensions.<computed> (C:\Users\Gaston H\AppData\Local\Temp\ts-node-dev-hook-18024469815272426.js:71:20)
