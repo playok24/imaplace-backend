@@ -138,9 +138,10 @@ function renderUsers(el) {
 }
 
 function renderBusinesses(el) {
-  if (!state.businesses.length) { el.innerHTML = '<div class="loading">Cargando...</div>'; return; }
+  if (!state.businesses) { el.innerHTML = '<div class="loading">Cargando...</div>'; return; }
   el.innerHTML = `
     <div style="margin-bottom:12px"><button class="btn btn-primary" onclick="showCreateBiz()">+ Nuevo comercio</button></div>
+    ${state.businesses.length === 0 ? '<div class="empty">No hay comercios todavía. Creá uno nuevo.</div>' : `
     <table>
       <thead><tr><th>Nombre</th><th>Categoría</th><th>Dueño</th><th>Prioridad</th><th>Suscripción</th><th>Estado</th><th>Acción</th></tr></thead>
       <tbody>
@@ -156,14 +157,15 @@ function renderBusinesses(el) {
           </tr>
         `).join('')}
       </tbody>
-    </table>
+    </table>`}
   `;
 }
 
 function renderTouristPoints(el) {
-  if (!state.touristPoints.length) { el.innerHTML = '<div class="loading">Cargando...</div>'; return; }
+  if (!state.touristPoints) { el.innerHTML = '<div class="loading">Cargando...</div>'; return; }
   el.innerHTML = `
     <div style="margin-bottom:12px"><button class="btn btn-primary" onclick="showCreateTouristPoint()">+ Nuevo punto turístico</button></div>
+    ${state.touristPoints.length === 0 ? '<div class="empty">No hay puntos turísticos todavía. Creá uno nuevo.</div>' : `
     <table>
       <thead><tr><th>Nombre</th><th>Categoría</th><th>Importancia</th><th>Prioridad</th><th>Ubicación</th><th>Gratis</th><th>Estado</th><th>Acción</th></tr></thead>
       <tbody>
@@ -183,7 +185,7 @@ function renderTouristPoints(el) {
           </tr>
         `).join('')}
       </tbody>
-    </table>
+    </table>`}
   `;
 }
 
