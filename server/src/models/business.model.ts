@@ -11,6 +11,7 @@ export interface Business {
   opening_hours?: Record<string, any>;
   website?: string;
   is_active: boolean;
+  priority: number;
   created_at: Date;
   updated_at: Date;
 }
@@ -26,4 +27,5 @@ export interface CreateBusinessInput {
   photos?: string[];
   opening_hours?: Record<string, any>;
   website?: string;
+  priority?: number;
 }

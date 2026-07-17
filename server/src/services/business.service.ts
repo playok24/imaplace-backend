@@ -3,11 +3,12 @@ import { Business, CreateBusinessInput } from '../models/business.model';
 
 export async function createBusiness(ownerId: string, input: CreateBusinessInput): Promise<Business> {
   const result = await query(
-    `INSERT INTO businesses (owner_id, name, description, category, latitude, longitude, address, phone, photos, opening_hours, website)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+    `INSERT INTO businesses (owner_id, name, description, category, latitude, longitude, address, phone, photos, opening_hours, website, priority)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
      RETURNING *`,
     [ownerId, input.name, input.description, input.category, input.latitude, input.longitude,
-     input.address, input.phone, input.photos || [], input.opening_hours || null, input.website || null]
+     input.address, input.phone, input.photos || [], input.opening_hours || null, input.website || null,
+     input.priority ?? 5]
   );
 
   return mapBusiness(result.rows[0]);
@@ -45,6 +46,7 @@ export async function updateBusiness(id: string, ownerId: string, input: Partial
   if (input.photos !== undefined) { sets.push(`photos = $${idx++}`); values.push(input.photos); }
   if (input.opening_hours !== undefined) { sets.push(`opening_hours = $${idx++}`); values.push(input.opening_hours); }
   if (input.website !== undefined) { sets.push(`website = $${idx++}`); values.push(input.website); }
+  if (input.priority !== undefined) { sets.push(`priority = $${idx++}`); values.push(input.priority); }
 
   if (sets.length === 0) return getBusinessById(id);
 
@@ -78,6 +80,7 @@ function mapBusiness(row: any): Business {
     opening_hours: row.opening_hours,
     website: row.website,
     is_active: row.is_active,
+    priority: row.priority ?? 5,
     created_at: row.created_at,
     updated_at: row.updated_at,
   };

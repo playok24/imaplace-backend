@@ -50,6 +50,17 @@ tr:hover td { background: #fafafa; }
 .status-badge.admin { background: #fce4ec; color: #C62828; }
 .status-badge.business_owner { background: #fff8e1; color: #F57F17; }
 
+.priority-select {
+  border: none;
+  border-radius: 6px;
+  padding: 4px 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  outline: none;
+  appearance: auto;
+}
+
 /* Buttons */
 .btn { padding: 6px 14px; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 500; }
 .btn-primary { background: #4A90D9; color: white; }

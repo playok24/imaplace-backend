@@ -30,7 +30,7 @@ router.patch('/users/:id/toggle', async (req, res) => {
 router.get('/businesses', async (_req, res) => {
   try {
     const result = await query(
-      `SELECT b.id, b.name, b.owner_id, u.name as owner_name, b.category, b.is_active, s.status as subscription_status, b.created_at
+      `SELECT b.id, b.name, b.owner_id, u.name as owner_name, b.category, b.priority, b.is_active, s.status as subscription_status, b.created_at
        FROM businesses b
        LEFT JOIN users u ON u.id = b.owner_id
        LEFT JOIN subscriptions s ON s.business_id = b.id AND s.status = 'authorized'
@@ -44,7 +44,7 @@ router.get('/businesses', async (_req, res) => {
 
 router.post('/businesses', async (req, res) => {
   try {
-    const { name, category, latitude, longitude, address, phone, website, owner_id } = req.body;
+    const { name, category, latitude, longitude, address, phone, website, owner_id, priority } = req.body;
     if (!name || !category || !latitude || !longitude || !owner_id) {
       return res.status(400).json({ error: 'Campos requeridos: name, category, latitude, longitude, owner_id' });
     }
@@ -56,10 +56,10 @@ router.post('/businesses', async (req, res) => {
       return res.status(400).json({ error: 'El dueño debe tener rol business_owner' });
     }
     const result = await query(
-      `INSERT INTO businesses (name, category, latitude, longitude, address, phone, website, owner_id, is_active)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, TRUE)
-       RETURNING id, name, category, latitude, longitude, address, phone, website, owner_id, is_active, created_at`,
-      [name, category, latitude, longitude, address || null, phone || null, website || null, owner_id]
+      `INSERT INTO businesses (name, category, latitude, longitude, address, phone, website, owner_id, is_active, priority)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, TRUE, $9)
+       RETURNING id, name, category, latitude, longitude, address, phone, website, owner_id, is_active, priority, created_at`,
+      [name, category, latitude, longitude, address || null, phone || null, website || null, owner_id, priority ?? 5]
     );
     res.status(201).json(result.rows[0]);
   } catch (err: any) {
@@ -94,7 +94,7 @@ router.get('/subscriptions', async (_req, res) => {
 
 router.get('/tourist-points', async (_req, res) => {
   try {
-    const result = await query('SELECT * FROM tourist_points ORDER BY created_at DESC LIMIT 100');
+    const result = await query('SELECT id, name, description, category, latitude, longitude, address, photos, website, importance, estimated_duration_minutes, season, is_free, tips, is_active, priority, created_at, updated_at FROM tourist_points ORDER BY created_at DESC LIMIT 100');
     res.json(result.rows);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -103,15 +103,15 @@ router.get('/tourist-points', async (_req, res) => {
 
 router.post('/tourist-points', async (req, res) => {
   try {
-    const { name, description, category, latitude, longitude, address, website, importance, estimated_duration_minutes, season, is_free, tips } = req.body;
+    const { name, description, category, latitude, longitude, address, website, importance, estimated_duration_minutes, season, is_free, tips, priority } = req.body;
     if (!name || !category || latitude == null || longitude == null) {
       return res.status(400).json({ error: 'Campos requeridos: name, category, latitude, longitude' });
     }
     const result = await query(
-      `INSERT INTO tourist_points (name, description, category, latitude, longitude, address, website, importance, estimated_duration_minutes, season, is_free, tips)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+      `INSERT INTO tourist_points (name, description, category, latitude, longitude, address, website, importance, estimated_duration_minutes, season, is_free, tips, priority)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
        RETURNING *`,
-      [name, description || null, category, latitude, longitude, address || null, website || null, importance || 'medium', estimated_duration_minutes || null, season || null, is_free ?? true, tips || null]
+      [name, description || null, category, latitude, longitude, address || null, website || null, importance || 'medium', estimated_duration_minutes || null, season || null, is_free ?? true, tips || null, priority ?? 5]
     );
     res.status(201).json(result.rows[0]);
   } catch (err: any) {
@@ -123,6 +123,32 @@ router.patch('/tourist-points/:id/toggle', async (req, res) => {
   try {
     const { is_active } = req.body;
     await query('UPDATE tourist_points SET is_active = $1, updated_at = NOW() WHERE id = $2', [is_active, req.params.id]);
+    res.json({ updated: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.patch('/businesses/:id/priority', async (req, res) => {
+  try {
+    const { priority } = req.body;
+    if (!priority || priority < 1 || priority > 5) {
+      return res.status(400).json({ error: 'Prioridad debe ser entre 1 y 5' });
+    }
+    await query('UPDATE businesses SET priority = $1, updated_at = NOW() WHERE id = $2', [priority, req.params.id]);
+    res.json({ updated: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.patch('/tourist-points/:id/priority', async (req, res) => {
+  try {
+    const { priority } = req.body;
+    if (!priority || priority < 1 || priority > 5) {
+      return res.status(400).json({ error: 'Prioridad debe ser entre 1 y 5' });
+    }
+    await query('UPDATE tourist_points SET priority = $1, updated_at = NOW() WHERE id = $2', [priority, req.params.id]);
     res.json({ updated: true });
   } catch (err: any) {
     res.status(500).json({ error: err.message });

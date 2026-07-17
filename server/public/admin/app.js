@@ -142,13 +142,14 @@ function renderBusinesses(el) {
   el.innerHTML = `
     <div style="margin-bottom:12px"><button class="btn btn-primary" onclick="showCreateBiz()">+ Nuevo comercio</button></div>
     <table>
-      <thead><tr><th>Nombre</th><th>Categoría</th><th>Dueño</th><th>Suscripción</th><th>Estado</th><th>Acción</th></tr></thead>
+      <thead><tr><th>Nombre</th><th>Categoría</th><th>Dueño</th><th>Prioridad</th><th>Suscripción</th><th>Estado</th><th>Acción</th></tr></thead>
       <tbody>
         ${state.businesses.map(b => `
           <tr>
             <td>${esc(b.name)}</td>
             <td>${esc(b.category)}</td>
             <td>${esc(b.owner_name)}</td>
+            <td>${renderPrioritySelect('biz', b.id, b.priority ?? 5)}</td>
             <td><span class="status-badge ${b.subscription_status || 'inactive'}">${b.subscription_status || 'inactiva'}</span></td>
             <td><span class="status-badge ${b.is_active ? 'active' : 'inactive'}">${b.is_active ? 'Activo' : 'Inactivo'}</span></td>
             <td><button class="btn ${b.is_active ? 'btn-danger' : 'btn-success'}" onclick="toggleBiz('${b.id}', ${b.is_active})">${b.is_active ? 'Desactivar' : 'Activar'}</button></td>
@@ -164,13 +165,14 @@ function renderTouristPoints(el) {
   el.innerHTML = `
     <div style="margin-bottom:12px"><button class="btn btn-primary" onclick="showCreateTouristPoint()">+ Nuevo punto turístico</button></div>
     <table>
-      <thead><tr><th>Nombre</th><th>Categoría</th><th>Importancia</th><th>Ubicación</th><th>Gratis</th><th>Estado</th><th>Acción</th></tr></thead>
+      <thead><tr><th>Nombre</th><th>Categoría</th><th>Importancia</th><th>Prioridad</th><th>Ubicación</th><th>Gratis</th><th>Estado</th><th>Acción</th></tr></thead>
       <tbody>
         ${state.touristPoints.map(p => `
           <tr>
             <td>${esc(p.name)}</td>
             <td>${esc(p.category)}</td>
             <td><span class="status-badge ${p.importance}">${p.importance}</span></td>
+            <td>${renderPrioritySelect('tp', p.id, p.priority ?? 5)}</td>
             <td style="font-size:12px;color:#999">${Number(p.latitude).toFixed(4)}, ${Number(p.longitude).toFixed(4)}</td>
             <td>${p.is_free ? 'Sí' : 'No'}</td>
             <td><span class="status-badge ${p.is_active ? 'active' : 'inactive'}">${p.is_active ? 'Activo' : 'Inactivo'}</span></td>
@@ -183,6 +185,28 @@ function renderTouristPoints(el) {
       </tbody>
     </table>
   `;
+}
+
+function renderPrioritySelect(type, id, current) {
+  let opts = '';
+  for (let i = 1; i <= 5; i++) {
+    const sel = i === current ? 'selected' : '';
+    const label = i === 1 ? '1 (arriba)' : `${i}`;
+    opts += `<option value="${i}" ${sel}>${label}</option>`;
+  }
+  const bg = {1:'#C62828',2:'#E65100',3:'#1565C0',4:'#6A1B9A',5:'#888'}[current] || '#888';
+  return `<select class="priority-select" style="background:${bg};color:white" onchange="updatePriority('${type}','${id}',this.value)">
+    ${opts}
+  </select>`;
+}
+
+async function updatePriority(type, id, value) {
+  const priority = parseInt(value);
+  if (type === 'biz') {
+    try { await api(`/api/admin/businesses/${id}/priority`, { method: 'PATCH', body: JSON.stringify({ priority }) }); showToast('Prioridad actualizada'); } catch (e) { showToast(e.message, 'error'); }
+  } else {
+    try { await api(`/api/admin/tourist-points/${id}/priority`, { method: 'PATCH', body: JSON.stringify({ priority }) }); showToast('Prioridad actualizada'); } catch (e) { showToast(e.message, 'error'); }
+  }
 }
 
 function renderSubscriptions(el) {
@@ -222,7 +246,16 @@ function showCreateBiz() {
     <div class="modal">
       <h2>Nuevo comercio</h2>
       <input id="biz-name" placeholder="Nombre *" />
-      <input id="biz-category" placeholder="Categoría *" />
+      <div class="form-row">
+        <input id="biz-category" placeholder="Categoría *" style="flex:1" />
+        <select id="biz-priority" style="width:120px">
+          <option value="5">Prioridad: 5</option>
+          <option value="4">Prioridad: 4</option>
+          <option value="3">Prioridad: 3</option>
+          <option value="2">Prioridad: 2</option>
+          <option value="1">Prioridad: 1 (arriba)</option>
+        </select>
+      </div>
       <div class="form-row">
         <input id="biz-lat" placeholder="Latitud *" type="number" step="any" />
         <input id="biz-lng" placeholder="Longitud *" type="number" step="any" />
@@ -252,9 +285,10 @@ async function createBiz() {
   const phone = document.getElementById('biz-phone').value;
   const website = document.getElementById('biz-website').value;
   const owner_id = document.getElementById('biz-owner').value;
+  const priority = parseInt(document.getElementById('biz-priority').value);
   if (!name || !category || !latitude || !longitude || !owner_id) { showToast('Completá los campos requeridos (*)', 'error'); return; }
   try {
-    await api('/api/admin/businesses', { method: 'POST', body: JSON.stringify({ name, category, latitude, longitude, address: address || undefined, phone: phone || undefined, website: website || undefined, owner_id }) });
+    await api('/api/admin/businesses', { method: 'POST', body: JSON.stringify({ name, category, latitude, longitude, priority, address: address || undefined, phone: phone || undefined, website: website || undefined, owner_id }) });
     showToast('Comercio creado');
     document.getElementById('biz-modal').remove();
     state.businesses = await api('/api/admin/businesses');
@@ -270,7 +304,16 @@ function showCreateTouristPoint() {
     <div class="modal">
       <h2>Nuevo punto turístico</h2>
       <input id="tp-name" placeholder="Nombre *" />
-      <input id="tp-category" placeholder="Categoría * (mirador, museo, parque, monumento, etc.)" />
+      <div class="form-row">
+        <input id="tp-category" placeholder="Categoría * (mirador, museo, parque, etc.)" style="flex:1" />
+        <select id="tp-priority" style="width:120px">
+          <option value="5">Prioridad: 5</option>
+          <option value="4">Prioridad: 4</option>
+          <option value="3">Prioridad: 3</option>
+          <option value="2">Prioridad: 2</option>
+          <option value="1">Prioridad: 1 (arriba)</option>
+        </select>
+      </div>
       <textarea id="tp-description" placeholder="Descripción" rows="3" style="width:100%;padding:10px 14px;margin-bottom:12px;border:1px solid #ddd;border-radius:8px;font-size:14px;font-family:inherit;resize:vertical"></textarea>
       <div class="form-row">
         <input id="tp-lat" placeholder="Latitud *" type="number" step="any" />
@@ -322,9 +365,10 @@ async function createTouristPoint() {
   const estimated_duration_minutes = parseInt(document.getElementById('tp-duration').value) || null;
   const is_free = document.getElementById('tp-free').checked;
   const tips = document.getElementById('tp-tips').value;
+  const priority = parseInt(document.getElementById('tp-priority').value);
   if (!name || !category || !latitude || !longitude) { showToast('Completá los campos requeridos (*)', 'error'); return; }
   try {
-    await api('/api/admin/tourist-points', { method: 'POST', body: JSON.stringify({ name, category, description, latitude, longitude, address: address || undefined, website: website || undefined, importance, season, estimated_duration_minutes, is_free, tips: tips || undefined }) });
+    await api('/api/admin/tourist-points', { method: 'POST', body: JSON.stringify({ name, category, description, latitude, longitude, priority, address: address || undefined, website: website || undefined, importance, season, estimated_duration_minutes, is_free, tips: tips || undefined }) });
     showToast('Punto turístico creado');
     document.getElementById('tp-modal').remove();
     state.touristPoints = await api('/api/admin/tourist-points');
