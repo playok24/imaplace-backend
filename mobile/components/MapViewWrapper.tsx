@@ -2,7 +2,6 @@ import { StyleSheet, View, TouchableOpacity, Text } from 'react-native';
 import {
   Map,
   Camera,
-  UserLocation,
   Marker,
   GeoJSONSource,
   Layer,
@@ -24,6 +23,8 @@ interface Props {
   onMarkerPress?: (business: Business) => void;
   onTouristPointPress?: (point: TouristPoint) => void;
   showsUserLocation?: boolean;
+  userLat?: number;
+  userLng?: number;
   onDidLoad?: () => void;
   style?: any;
 }
@@ -40,6 +41,8 @@ export default function MapViewWrapper({
   onMarkerPress,
   onTouristPointPress,
   showsUserLocation = false,
+  userLat,
+  userLng,
   onDidLoad,
   style,
 }: Props) {
@@ -69,7 +72,13 @@ export default function MapViewWrapper({
           zoomLevel={12}
         />
 
-        {showsUserLocation && <UserLocation />}
+        {showsUserLocation && userLat != null && userLng != null && (
+          <Marker id="user-location" lngLat={[userLng, userLat]} anchor="center">
+            <View style={styles.userCarBg}>
+              <Text style={styles.userCarEmoji}>🚗</Text>
+            </View>
+          </Marker>
+        )}
 
         {sortedMarkers.map((item) => {
           if (item.type === 'business') {
@@ -254,6 +263,19 @@ const styles = StyleSheet.create({
     height: 10,
     borderRadius: 5,
     backgroundColor: 'white',
+  },
+  userCarBg: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(74,144,217,0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#4A90D9',
+  },
+  userCarEmoji: {
+    fontSize: 22,
   },
   destMarker: {
     width: 28,

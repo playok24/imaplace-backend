@@ -240,14 +240,14 @@ async function toggleBiz(id, isActive) {
 }
 
 // ---- Map Picker ----
-function initMapPicker(mapId, latId, lngId) {
+function initMapPicker(mapId, prefix) {
   const map = L.map(mapId, { zoomControl: true }).setView([-31.420, -64.188], 14);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
   let marker = null;
 
   function setCoords(lat, lng) {
-    document.getElementById(latId).value = lat.toFixed(6);
-    document.getElementById(lngId).value = lng.toFixed(6);
+    window[`${prefix}Lat`] = lat;
+    window[`${prefix}Lng`] = lng;
     if (marker) { marker.setLatLng([lat, lng]); }
     else {
       marker = L.marker([lat, lng], { draggable: true }).addTo(map);
@@ -269,11 +269,11 @@ async function resolveCoords(prefix) {
   if (!url) { showToast('Pegá un link de Google Maps primero', 'error'); return; }
   try {
     const data = await api('/api/utils/resolve-coordinates', { method: 'POST', body: JSON.stringify({ url }) });
-    document.getElementById(`${prefix}-lat`).value = data.latitude.toFixed(6);
-    document.getElementById(`${prefix}-lng`).value = data.longitude.toFixed(6);
+    window[`${prefix}Lat`] = data.latitude;
+    window[`${prefix}Lng`] = data.longitude;
     const mapObj = window[`${prefix}Map`];
     if (mapObj) mapObj.setCoords(data.latitude, data.longitude);
-    showToast('Coordenadas resueltas: ' + data.latitude.toFixed(4) + ', ' + data.longitude.toFixed(4));
+    showToast('Ubicación resuelta');
   } catch (e) { showToast(e.message, 'error'); }
 }
 
@@ -308,6 +308,8 @@ function removePhoto(prefix, i) {
 // ---- Business Create ----
 function showCreateBiz() {
   window.bizPhotos = [];
+  window.bizLat = null;
+  window.bizLng = null;
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay';
   overlay.id = 'biz-modal';
@@ -330,8 +332,6 @@ function showCreateBiz() {
         <button class="btn btn-primary" onclick="resolveCoords('biz')" style="white-space:nowrap">Resolver</button>
       </div>
       <div id="biz-map" class="map-picker"></div>
-      <input id="biz-lat" type="hidden" />
-      <input id="biz-lng" type="hidden" />
       <input id="biz-address" placeholder="Dirección" />
       <input id="biz-phone" placeholder="Teléfono" />
       <input id="biz-website" placeholder="Sitio web" />
@@ -354,21 +354,21 @@ function showCreateBiz() {
     </div>
   `;
   document.body.appendChild(overlay);
-  window.bizMap = initMapPicker('biz-map', 'biz-lat', 'biz-lng');
+  window.bizMap = initMapPicker('biz-map', 'biz');
 }
 
 async function createBiz() {
   const name = document.getElementById('biz-name').value;
   const category = document.getElementById('biz-category').value;
-  const latitude = parseFloat(document.getElementById('biz-lat').value);
-  const longitude = parseFloat(document.getElementById('biz-lng').value);
+  const latitude = window.bizLat;
+  const longitude = window.bizLng;
   const address = document.getElementById('biz-address').value;
   const phone = document.getElementById('biz-phone').value;
   const website = document.getElementById('biz-website').value;
   const owner_id = document.getElementById('biz-owner').value;
   const priority = parseInt(document.getElementById('biz-priority').value);
   const photos = window.bizPhotos || [];
-  if (!name || !category || isNaN(latitude) || isNaN(longitude)) { showToast('Completá nombre, categoría, y hacé clic en el mapa o resolvé un link de Google Maps', 'error'); return; }
+  if (!name || !category || latitude == null || longitude == null) { showToast('Completá nombre, categoría, y hacé clic en el mapa o resolvé un link de Google Maps', 'error'); return; }
   try {
     const body = { name, category, latitude, longitude, priority, photos, address: address || undefined, phone: phone || undefined, website: website || undefined };
     if (owner_id) body.owner_id = owner_id;
@@ -389,6 +389,8 @@ function cleanupMap(mapId) {
 // ---- Tourist Point Create ----
 function showCreateTouristPoint() {
   window.tpPhotos = [];
+  window.tpLat = null;
+  window.tpLng = null;
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay';
   overlay.id = 'tp-modal';
@@ -412,8 +414,6 @@ function showCreateTouristPoint() {
         <button class="btn btn-primary" onclick="resolveCoords('tp')" style="white-space:nowrap">Resolver</button>
       </div>
       <div id="tp-map" class="map-picker"></div>
-      <input id="tp-lat" type="hidden" />
-      <input id="tp-lng" type="hidden" />
       <input id="tp-address" placeholder="Dirección" />
       <input id="tp-website" placeholder="Sitio web" />
       <div class="form-row">
@@ -453,15 +453,15 @@ function showCreateTouristPoint() {
     </div>
   `;
   document.body.appendChild(overlay);
-  window.tpMap = initMapPicker('tp-map', 'tp-lat', 'tp-lng');
+  window.tpMap = initMapPicker('tp-map', 'tp');
 }
 
 async function createTouristPoint() {
   const name = document.getElementById('tp-name').value;
   const category = document.getElementById('tp-category').value;
   const description = document.getElementById('tp-description').value;
-  const latitude = parseFloat(document.getElementById('tp-lat').value);
-  const longitude = parseFloat(document.getElementById('tp-lng').value);
+  const latitude = window.tpLat;
+  const longitude = window.tpLng;
   const address = document.getElementById('tp-address').value;
   const website = document.getElementById('tp-website').value;
   const importance = document.getElementById('tp-importance').value;
@@ -471,7 +471,7 @@ async function createTouristPoint() {
   const tips = document.getElementById('tp-tips').value;
   const priority = parseInt(document.getElementById('tp-priority').value);
   const photos = window.tpPhotos || [];
-  if (!name || !category || isNaN(latitude) || isNaN(longitude)) { showToast('Completá nombre, categoría, y hacé clic en el mapa o resolvé un link de Google Maps', 'error'); return; }
+  if (!name || !category || latitude == null || longitude == null) { showToast('Completá nombre, categoría, y hacé clic en el mapa o resolvé un link de Google Maps', 'error'); return; }
   try {
     await api('/api/admin/tourist-points', { method: 'POST', body: JSON.stringify({ name, category, description, latitude, longitude, priority, photos, address: address || undefined, website: website || undefined, importance, season, estimated_duration_minutes, is_free, tips: tips || undefined }) });
     showToast('Punto turístico creado');

@@ -152,6 +152,8 @@ export default function MapScreen() {
         onMarkerPress={handleMarkerPress}
         onTouristPointPress={handleTouristPointPress}
         showsUserLocation
+        userLat={latitude ?? undefined}
+        userLng={longitude ?? undefined}
         onDidLoad={() => setMapReady(true)}
         initialCenter={latitude && longitude ? { lat: latitude, lng: longitude } : undefined}
       />
