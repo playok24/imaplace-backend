@@ -1,6 +1,6 @@
 const API = '';
 let token = localStorage.getItem('token');
-let state = { stats: null, users: [], businesses: [], subscriptions: [], tab: 'stats' };
+let state = { stats: null, users: [], businesses: [], subscriptions: [], touristPoints: [], tab: 'stats' };
 
 async function api(path, opts = {}) {
   const res = await fetch(API + path, {
@@ -34,6 +34,7 @@ function render() {
       <button class="${state.tab === 'stats' ? 'active' : ''}" onclick="switchTab('stats')">Dashboard</button>
       <button class="${state.tab === 'users' ? 'active' : ''}" onclick="switchTab('users')">Usuarios</button>
       <button class="${state.tab === 'businesses' ? 'active' : ''}" onclick="switchTab('businesses')">Comercios</button>
+      <button class="${state.tab === 'touristPoints' ? 'active' : ''}" onclick="switchTab('touristPoints')">Puntos Turísticos</button>
       <button class="${state.tab === 'subscriptions' ? 'active' : ''}" onclick="switchTab('subscriptions')">Suscripciones</button>
     </div>
     <div id="content"></div>
@@ -62,7 +63,7 @@ async function login() {
     token = data.accessToken;
     state.user = data.user;
     localStorage.setItem('token', token);
-    await loadData();
+    await loadTab('stats');
     render();
   } catch (e) {
     document.getElementById('login-error').textContent = e.message;
@@ -71,29 +72,25 @@ async function login() {
 
 function logout() {
   token = null;
-  state = { stats: null, users: [], businesses: [], subscriptions: [], tab: 'stats' };
+  state = { stats: null, users: [], businesses: [], subscriptions: [], touristPoints: [], tab: 'stats' };
   localStorage.removeItem('token');
   render();
 }
 
-async function loadData() {
+async function loadTab(tab) {
   try {
-    const [stats, users, businesses, subscriptions] = await Promise.all([
-      api('/api/admin/stats'),
-      api('/api/admin/users'),
-      api('/api/admin/businesses'),
-      api('/api/admin/subscriptions'),
-    ]);
-    state.stats = stats;
-    state.users = users;
-    state.businesses = businesses;
-    state.subscriptions = subscriptions;
+    if (tab === 'stats') state.stats = await api('/api/admin/stats');
+    else if (tab === 'users') state.users = await api('/api/admin/users');
+    else if (tab === 'businesses') state.businesses = await api('/api/admin/businesses');
+    else if (tab === 'touristPoints') state.touristPoints = await api('/api/admin/tourist-points');
+    else if (tab === 'subscriptions') state.subscriptions = await api('/api/admin/subscriptions');
   } catch (e) { showToast(e.message, 'error'); }
 }
 
 function switchTab(tab) {
   state.tab = tab;
   render();
+  loadTab(tab).then(() => renderContent());
 }
 
 function renderContent() {
@@ -102,6 +99,7 @@ function renderContent() {
   if (state.tab === 'stats') renderStats(el);
   else if (state.tab === 'users') renderUsers(el);
   else if (state.tab === 'businesses') renderBusinesses(el);
+  else if (state.tab === 'touristPoints') renderTouristPoints(el);
   else if (state.tab === 'subscriptions') renderSubscriptions(el);
 }
 
@@ -113,6 +111,8 @@ function renderStats(el) {
       <div class="stat-card"><div class="value">${state.stats.totalBusinesses}</div><div class="label">Comercios</div></div>
       <div class="stat-card"><div class="value">${state.stats.activeSubscriptions}</div><div class="label">Suscripciones activas</div></div>
       <div class="stat-card"><div class="value">${state.stats.activeBusinesses}</div><div class="label">Comercios activos</div></div>
+      <div class="stat-card"><div class="value">${state.stats.totalTouristPoints}</div><div class="label">Puntos turísticos</div></div>
+      <div class="stat-card"><div class="value">${state.stats.activeTouristPoints}</div><div class="label">Puntos activos</div></div>
     </div>
   `;
 }
@@ -159,6 +159,32 @@ function renderBusinesses(el) {
   `;
 }
 
+function renderTouristPoints(el) {
+  if (!state.touristPoints.length) { el.innerHTML = '<div class="loading">Cargando...</div>'; return; }
+  el.innerHTML = `
+    <div style="margin-bottom:12px"><button class="btn btn-primary" onclick="showCreateTouristPoint()">+ Nuevo punto turístico</button></div>
+    <table>
+      <thead><tr><th>Nombre</th><th>Categoría</th><th>Importancia</th><th>Ubicación</th><th>Gratis</th><th>Estado</th><th>Acción</th></tr></thead>
+      <tbody>
+        ${state.touristPoints.map(p => `
+          <tr>
+            <td>${esc(p.name)}</td>
+            <td>${esc(p.category)}</td>
+            <td><span class="status-badge ${p.importance}">${p.importance}</span></td>
+            <td style="font-size:12px;color:#999">${Number(p.latitude).toFixed(4)}, ${Number(p.longitude).toFixed(4)}</td>
+            <td>${p.is_free ? 'Sí' : 'No'}</td>
+            <td><span class="status-badge ${p.is_active ? 'active' : 'inactive'}">${p.is_active ? 'Activo' : 'Inactivo'}</span></td>
+            <td>
+              <button class="btn ${p.is_active ? 'btn-danger' : 'btn-success'}" onclick="toggleTouristPoint('${p.id}', ${p.is_active})" style="margin-right:4px">${p.is_active ? 'Desactivar' : 'Activar'}</button>
+              <button class="btn btn-outline" onclick="deleteTouristPoint('${p.id}')">Eliminar</button>
+            </td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  `;
+}
+
 function renderSubscriptions(el) {
   if (!state.subscriptions.length) { el.innerHTML = '<div class="empty">No hay suscripciones</div>'; return; }
   el.innerHTML = `
@@ -181,11 +207,11 @@ function renderSubscriptions(el) {
 }
 
 async function toggleUser(id, isActive) {
-  try { await api(`/api/admin/users/${id}/toggle`, { method: 'PATCH', body: JSON.stringify({ is_active: !isActive }) }); showToast('Usuario actualizado'); await loadData(); renderContent(); } catch (e) { showToast(e.message, 'error'); }
+  try { await api(`/api/admin/users/${id}/toggle`, { method: 'PATCH', body: JSON.stringify({ is_active: !isActive }) }); showToast('Usuario actualizado'); state.users = await api('/api/admin/users'); renderContent(); } catch (e) { showToast(e.message, 'error'); }
 }
 
 async function toggleBiz(id, isActive) {
-  try { await api(`/api/admin/businesses/${id}/toggle`, { method: 'PATCH', body: JSON.stringify({ is_active: !isActive }) }); showToast('Comercio actualizado'); await loadData(); renderContent(); } catch (e) { showToast(e.message, 'error'); }
+  try { await api(`/api/admin/businesses/${id}/toggle`, { method: 'PATCH', body: JSON.stringify({ is_active: !isActive }) }); showToast('Comercio actualizado'); state.businesses = await api('/api/admin/businesses'); renderContent(); } catch (e) { showToast(e.message, 'error'); }
 }
 
 function showCreateBiz() {
@@ -231,11 +257,90 @@ async function createBiz() {
     await api('/api/admin/businesses', { method: 'POST', body: JSON.stringify({ name, category, latitude, longitude, address: address || undefined, phone: phone || undefined, website: website || undefined, owner_id }) });
     showToast('Comercio creado');
     document.getElementById('biz-modal').remove();
-    await loadData();
+    state.businesses = await api('/api/admin/businesses');
     renderContent();
   } catch (e) { showToast(e.message, 'error'); }
 }
 
+function showCreateTouristPoint() {
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.id = 'tp-modal';
+  overlay.innerHTML = `
+    <div class="modal">
+      <h2>Nuevo punto turístico</h2>
+      <input id="tp-name" placeholder="Nombre *" />
+      <input id="tp-category" placeholder="Categoría * (mirador, museo, parque, monumento, etc.)" />
+      <textarea id="tp-description" placeholder="Descripción" rows="3" style="width:100%;padding:10px 14px;margin-bottom:12px;border:1px solid #ddd;border-radius:8px;font-size:14px;font-family:inherit;resize:vertical"></textarea>
+      <div class="form-row">
+        <input id="tp-lat" placeholder="Latitud *" type="number" step="any" />
+        <input id="tp-lng" placeholder="Longitud *" type="number" step="any" />
+      </div>
+      <input id="tp-address" placeholder="Dirección" />
+      <input id="tp-website" placeholder="Sitio web" />
+      <div class="form-row">
+        <select id="tp-importance" style="flex:1">
+          <option value="medium">Importancia: Media</option>
+          <option value="low">Baja</option>
+          <option value="high">Alta</option>
+          <option value="must-see">Imperdible</option>
+        </select>
+        <select id="tp-season" style="flex:1">
+          <option value="all">Temporada: Todas</option>
+          <option value="spring">Primavera</option>
+          <option value="summer">Verano</option>
+          <option value="autumn">Otoño</option>
+          <option value="winter">Invierno</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <input id="tp-duration" placeholder="Duración (minutos)" type="number" min="0" />
+        <label style="display:flex;align-items:center;gap:6px;white-space:nowrap;font-size:14px">
+          <input id="tp-free" type="checkbox" checked /> Gratis
+        </label>
+      </div>
+      <textarea id="tp-tips" placeholder="Tips / recomendaciones" rows="2" style="width:100%;padding:10px 14px;margin-bottom:12px;border:1px solid #ddd;border-radius:8px;font-size:14px;font-family:inherit;resize:vertical"></textarea>
+      <div class="modal-actions">
+        <button class="btn-cancel" onclick="document.getElementById('tp-modal').remove()">Cancelar</button>
+        <button class="btn btn-primary" onclick="createTouristPoint()">Crear punto</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+}
+
+async function createTouristPoint() {
+  const name = document.getElementById('tp-name').value;
+  const category = document.getElementById('tp-category').value;
+  const description = document.getElementById('tp-description').value;
+  const latitude = parseFloat(document.getElementById('tp-lat').value);
+  const longitude = parseFloat(document.getElementById('tp-lng').value);
+  const address = document.getElementById('tp-address').value;
+  const website = document.getElementById('tp-website').value;
+  const importance = document.getElementById('tp-importance').value;
+  const season = document.getElementById('tp-season').value;
+  const estimated_duration_minutes = parseInt(document.getElementById('tp-duration').value) || null;
+  const is_free = document.getElementById('tp-free').checked;
+  const tips = document.getElementById('tp-tips').value;
+  if (!name || !category || !latitude || !longitude) { showToast('Completá los campos requeridos (*)', 'error'); return; }
+  try {
+    await api('/api/admin/tourist-points', { method: 'POST', body: JSON.stringify({ name, category, description, latitude, longitude, address: address || undefined, website: website || undefined, importance, season, estimated_duration_minutes, is_free, tips: tips || undefined }) });
+    showToast('Punto turístico creado');
+    document.getElementById('tp-modal').remove();
+    state.touristPoints = await api('/api/admin/tourist-points');
+    renderContent();
+  } catch (e) { showToast(e.message, 'error'); }
+}
+
+async function toggleTouristPoint(id, isActive) {
+  try { await api(`/api/admin/tourist-points/${id}/toggle`, { method: 'PATCH', body: JSON.stringify({ is_active: !isActive }) }); showToast('Actualizado'); state.touristPoints = await api('/api/admin/tourist-points'); renderContent(); } catch (e) { showToast(e.message, 'error'); }
+}
+
+async function deleteTouristPoint(id) {
+  if (!confirm('¿Eliminar este punto turístico?')) return;
+  try { await api(`/api/admin/tourist-points/${id}`, { method: 'DELETE' }); showToast('Eliminado'); state.touristPoints = await api('/api/admin/tourist-points'); renderContent(); } catch (e) { showToast(e.message, 'error'); }
+}
+
 function esc(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
 
-if (token) { api('/api/auth/me').then(u => { state.user = u; loadData().then(render); }).catch(() => { token = null; localStorage.removeItem('token'); render(); }); } else { render(); }
+if (token) { api('/api/auth/me').then(u => { state.user = u; loadTab('stats').then(render); }).catch(() => { token = null; localStorage.removeItem('token'); render(); }); } else { render(); }

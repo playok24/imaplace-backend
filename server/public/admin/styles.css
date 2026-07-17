@@ -42,6 +42,13 @@ tr:hover td { background: #fafafa; }
 .status-badge.authorized { background: #e8f5e9; color: #4CAF50; }
 .status-badge.pending { background: #fff8e1; color: #FFA000; }
 .status-badge.cancelled { background: #fbe9e7; color: #D32F2F; }
+.status-badge.must-see { background: #fce4ec; color: #C62828; }
+.status-badge.high { background: #fff3e0; color: #E65100; }
+.status-badge.medium { background: #e3f2fd; color: #1565C0; }
+.status-badge.low { background: #f3f3f3; color: #888; }
+.status-badge.user { background: #e8f5e9; color: #2E7D32; }
+.status-badge.admin { background: #fce4ec; color: #C62828; }
+.status-badge.business_owner { background: #fff8e1; color: #F57F17; }
 
 /* Buttons */
 .btn { padding: 6px 14px; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 500; }
