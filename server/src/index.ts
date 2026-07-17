@@ -11,6 +11,7 @@ import webhookRoutes from './routes/webhook.routes';
 import paymentRoutes from './routes/payment.routes';
 import locationRoutes from './routes/location.routes';
 import adminRoutes from './routes/admin.routes';
+import utilsRoutes from './routes/utils.routes';
 import { expireOverdueSubscriptions } from './services/subscription.service';
 
 const app = express();
@@ -38,6 +39,7 @@ app.use('/admin', express.static(path.join(__dirname, '../public/admin')));
 app.use('/api/auth', authRoutes);
 app.use('/api/businesses', businessRoutes);
 app.use('/api/location', locationRoutes);
+app.use('/api/utils', utilsRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/webhooks', webhookRoutes);
 app.use('/api/payments', paymentRoutes);

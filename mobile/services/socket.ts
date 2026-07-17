@@ -1,6 +1,6 @@
 import { io, Socket } from 'socket.io-client';
 import { SOCKET_URL } from '../constants/Api';
-import { NearbyBusiness } from '../types';
+import { NearbyBusiness, NearbyTouristPoint } from '../types';
 
 let socket: Socket | null = null;
 
@@ -31,6 +31,14 @@ export function onBusinessNearby(callback: (business: NearbyBusiness) => void): 
   socket.on('business_nearby', callback);
   return () => {
     socket?.off('business_nearby', callback);
+  };
+}
+
+export function onTouristPointNearby(callback: (point: NearbyTouristPoint) => void): () => void {
+  if (!socket) return () => {};
+  socket.on('tourist_point_nearby', callback);
+  return () => {
+    socket?.off('tourist_point_nearby', callback);
   };
 }
 

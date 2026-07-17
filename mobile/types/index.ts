@@ -22,6 +22,7 @@ export interface Business {
   opening_hours?: Record<string, any>;
   website?: string;
   is_active: boolean;
+  priority: number;
   created_at: string;
 }
 
@@ -36,6 +37,27 @@ export interface Subscription {
 }
 
 export interface NearbyBusiness extends Business {
+  distance: number;
+}
+
+export interface TouristPoint {
+  id: string;
+  name: string;
+  description?: string;
+  category: string;
+  location: { lat: number; lng: number };
+  photos: string[];
+  importance: string;
+  priority: number;
+  estimated_duration_minutes?: number | null;
+  season?: string;
+  is_free: boolean;
+  tips?: string;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface NearbyTouristPoint extends TouristPoint {
   distance: number;
 }
 

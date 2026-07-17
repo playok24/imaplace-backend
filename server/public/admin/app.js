@@ -167,7 +167,7 @@ function renderTouristPoints(el) {
     <div style="margin-bottom:12px"><button class="btn btn-primary" onclick="showCreateTouristPoint()">+ Nuevo punto turístico</button></div>
     ${state.touristPoints.length === 0 ? '<div class="empty">No hay puntos turísticos todavía. Creá uno nuevo.</div>' : `
     <table>
-      <thead><tr><th>Nombre</th><th>Categoría</th><th>Importancia</th><th>Prioridad</th><th>Ubicación</th><th>Gratis</th><th>Estado</th><th>Acción</th></tr></thead>
+      <thead><tr><th>Nombre</th><th>Categoría</th><th>Importancia</th><th>Prioridad</th><th>Gratis</th><th>Estado</th><th>Acción</th></tr></thead>
       <tbody>
         ${state.touristPoints.map(p => `
           <tr>
@@ -175,7 +175,6 @@ function renderTouristPoints(el) {
             <td>${esc(p.category)}</td>
             <td><span class="status-badge ${p.importance}">${p.importance}</span></td>
             <td>${renderPrioritySelect('tp', p.id, p.priority ?? 5)}</td>
-            <td style="font-size:12px;color:#999">${Number(p.latitude).toFixed(4)}, ${Number(p.longitude).toFixed(4)}</td>
             <td>${p.is_free ? 'Sí' : 'No'}</td>
             <td><span class="status-badge ${p.is_active ? 'active' : 'inactive'}">${p.is_active ? 'Activo' : 'Inactivo'}</span></td>
             <td>
@@ -240,12 +239,80 @@ async function toggleBiz(id, isActive) {
   try { await api(`/api/admin/businesses/${id}/toggle`, { method: 'PATCH', body: JSON.stringify({ is_active: !isActive }) }); showToast('Comercio actualizado'); state.businesses = await api('/api/admin/businesses'); renderContent(); } catch (e) { showToast(e.message, 'error'); }
 }
 
+// ---- Map Picker ----
+function initMapPicker(mapId, latId, lngId) {
+  const map = L.map(mapId, { zoomControl: true }).setView([-31.420, -64.188], 14);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+  let marker = null;
+
+  function setCoords(lat, lng) {
+    document.getElementById(latId).value = lat.toFixed(6);
+    document.getElementById(lngId).value = lng.toFixed(6);
+    if (marker) { marker.setLatLng([lat, lng]); }
+    else {
+      marker = L.marker([lat, lng], { draggable: true }).addTo(map);
+      marker.on('dragend', () => setCoords(marker.getLatLng().lat, marker.getLatLng().lng));
+    }
+    map.setView([lat, lng], map.getZoom());
+  }
+
+  map.on('click', (e) => setCoords(e.latlng.lat, e.latlng.lng));
+
+  setTimeout(() => map.invalidateSize(), 300);
+  return { map, setCoords };
+}
+
+// ---- URL Resolver ----
+async function resolveCoords(prefix) {
+  const input = document.getElementById(`${prefix}-gmaps`);
+  const url = input.value.trim();
+  if (!url) { showToast('Pegá un link de Google Maps primero', 'error'); return; }
+  try {
+    const data = await api('/api/utils/resolve-coordinates', { method: 'POST', body: JSON.stringify({ url }) });
+    document.getElementById(`${prefix}-lat`).value = data.latitude.toFixed(6);
+    document.getElementById(`${prefix}-lng`).value = data.longitude.toFixed(6);
+    const mapObj = window[`${prefix}Map`];
+    if (mapObj) mapObj.setCoords(data.latitude, data.longitude);
+    showToast('Coordenadas resueltas: ' + data.latitude.toFixed(4) + ', ' + data.longitude.toFixed(4));
+  } catch (e) { showToast(e.message, 'error'); }
+}
+
+// ---- Photo list helper ----
+function photoListHTML(prefix) {
+  const photos = window[`${prefix}Photos`] || [];
+  const list = photos.map((url, i) =>
+    `<span style="display:inline-flex;align-items:center;gap:4px;background:#f0f0f0;padding:2px 8px;border-radius:4px;margin:2px;font-size:12px">
+      <img src="${esc(url)}" style="width:24px;height:24px;object-fit:cover;border-radius:3px" onerror="this.style.display='none'" />
+      ${esc(url.substring(0, 30))}...
+      <button onclick="removePhoto('${prefix}',${i})" style="background:none;border:none;cursor:pointer;color:#c00;font-size:14px;padding:0">&times;</button>
+    </span>`
+  ).join('');
+  return `<div id="${prefix}-photo-list" style="margin-bottom:8px">${list}</div>`;
+}
+
+function addPhoto(prefix) {
+  const input = document.getElementById(`${prefix}-photo-input`);
+  const url = input.value.trim();
+  if (!url) return;
+  if (!window[`${prefix}Photos`]) window[`${prefix}Photos`] = [];
+  window[`${prefix}Photos`].push(url);
+  input.value = '';
+  document.getElementById(`${prefix}-photo-list`).outerHTML = photoListHTML(prefix);
+}
+
+function removePhoto(prefix, i) {
+  window[`${prefix}Photos`].splice(i, 1);
+  document.getElementById(`${prefix}-photo-list`).outerHTML = photoListHTML(prefix);
+}
+
+// ---- Business Create ----
 function showCreateBiz() {
+  window.bizPhotos = [];
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay';
   overlay.id = 'biz-modal';
   overlay.innerHTML = `
-    <div class="modal">
+    <div class="modal modal-wide">
       <h2>Nuevo comercio</h2>
       <input id="biz-name" placeholder="Nombre *" />
       <div class="form-row">
@@ -259,23 +326,35 @@ function showCreateBiz() {
         </select>
       </div>
       <div class="form-row">
-        <input id="biz-lat" placeholder="Latitud *" type="number" step="any" />
-        <input id="biz-lng" placeholder="Longitud *" type="number" step="any" />
+        <input id="biz-gmaps" placeholder="Link de Google Maps (ej: https://maps.app.goo.gl/...)" style="flex:1" />
+        <button class="btn btn-primary" onclick="resolveCoords('biz')" style="white-space:nowrap">Resolver</button>
       </div>
+      <div id="biz-map" class="map-picker"></div>
+      <input id="biz-lat" type="hidden" />
+      <input id="biz-lng" type="hidden" />
       <input id="biz-address" placeholder="Dirección" />
       <input id="biz-phone" placeholder="Teléfono" />
       <input id="biz-website" placeholder="Sitio web" />
+      <div style="margin-bottom:8px">
+        <label style="font-size:13px;font-weight:600;display:block;margin-bottom:4px">Fotos (URLs)</label>
+        <div class="form-row">
+          <input id="biz-photo-input" placeholder="https://ejemplo.com/foto.jpg" style="flex:1" />
+          <button class="btn btn-primary" onclick="addPhoto('biz')" style="white-space:nowrap">Agregar</button>
+        </div>
+        ${photoListHTML('biz')}
+      </div>
       <select id="biz-owner">
-        <option value="">Seleccionar dueño *</option>
+        <option value="">Sin dueño (creación manual)</option>
         ${state.users.map(u => `<option value="${u.id}">${esc(u.name)} (${u.email}) - ${u.role}</option>`).join('')}
       </select>
       <div class="modal-actions">
-        <button class="btn-cancel" onclick="document.getElementById('biz-modal').remove()">Cancelar</button>
+        <button class="btn-cancel" onclick="cleanupMap('biz-map');document.getElementById('biz-modal').remove()">Cancelar</button>
         <button class="btn btn-primary" onclick="createBiz()">Crear comercio</button>
       </div>
     </div>
   `;
   document.body.appendChild(overlay);
+  window.bizMap = initMapPicker('biz-map', 'biz-lat', 'biz-lng');
 }
 
 async function createBiz() {
@@ -288,22 +367,33 @@ async function createBiz() {
   const website = document.getElementById('biz-website').value;
   const owner_id = document.getElementById('biz-owner').value;
   const priority = parseInt(document.getElementById('biz-priority').value);
-  if (!name || !category || !latitude || !longitude || !owner_id) { showToast('Completá los campos requeridos (*)', 'error'); return; }
+  const photos = window.bizPhotos || [];
+  if (!name || !category || isNaN(latitude) || isNaN(longitude)) { showToast('Completá nombre, categoría, y hacé clic en el mapa o resolvé un link de Google Maps', 'error'); return; }
   try {
-    await api('/api/admin/businesses', { method: 'POST', body: JSON.stringify({ name, category, latitude, longitude, priority, address: address || undefined, phone: phone || undefined, website: website || undefined, owner_id }) });
+    const body = { name, category, latitude, longitude, priority, photos, address: address || undefined, phone: phone || undefined, website: website || undefined };
+    if (owner_id) body.owner_id = owner_id;
+    await api('/api/admin/businesses', { method: 'POST', body: JSON.stringify(body) });
     showToast('Comercio creado');
+    cleanupMap('biz-map');
     document.getElementById('biz-modal').remove();
     state.businesses = await api('/api/admin/businesses');
     renderContent();
   } catch (e) { showToast(e.message, 'error'); }
 }
 
+function cleanupMap(mapId) {
+  const map = window.bizMap || window.tpMap;
+  if (map) { if (map.map) map.map.remove(); else map.remove(); window.bizMap = null; window.tpMap = null; }
+}
+
+// ---- Tourist Point Create ----
 function showCreateTouristPoint() {
+  window.tpPhotos = [];
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay';
   overlay.id = 'tp-modal';
   overlay.innerHTML = `
-    <div class="modal">
+    <div class="modal modal-wide">
       <h2>Nuevo punto turístico</h2>
       <input id="tp-name" placeholder="Nombre *" />
       <div class="form-row">
@@ -318,9 +408,12 @@ function showCreateTouristPoint() {
       </div>
       <textarea id="tp-description" placeholder="Descripción" rows="3" style="width:100%;padding:10px 14px;margin-bottom:12px;border:1px solid #ddd;border-radius:8px;font-size:14px;font-family:inherit;resize:vertical"></textarea>
       <div class="form-row">
-        <input id="tp-lat" placeholder="Latitud *" type="number" step="any" />
-        <input id="tp-lng" placeholder="Longitud *" type="number" step="any" />
+        <input id="tp-gmaps" placeholder="Link de Google Maps (ej: https://maps.app.goo.gl/...)" style="flex:1" />
+        <button class="btn btn-primary" onclick="resolveCoords('tp')" style="white-space:nowrap">Resolver</button>
       </div>
+      <div id="tp-map" class="map-picker"></div>
+      <input id="tp-lat" type="hidden" />
+      <input id="tp-lng" type="hidden" />
       <input id="tp-address" placeholder="Dirección" />
       <input id="tp-website" placeholder="Sitio web" />
       <div class="form-row">
@@ -344,14 +437,23 @@ function showCreateTouristPoint() {
           <input id="tp-free" type="checkbox" checked /> Gratis
         </label>
       </div>
+      <div style="margin-bottom:8px">
+        <label style="font-size:13px;font-weight:600;display:block;margin-bottom:4px">Fotos (URLs)</label>
+        <div class="form-row">
+          <input id="tp-photo-input" placeholder="https://ejemplo.com/foto.jpg" style="flex:1" />
+          <button class="btn btn-primary" onclick="addPhoto('tp')" style="white-space:nowrap">Agregar</button>
+        </div>
+        ${photoListHTML('tp')}
+      </div>
       <textarea id="tp-tips" placeholder="Tips / recomendaciones" rows="2" style="width:100%;padding:10px 14px;margin-bottom:12px;border:1px solid #ddd;border-radius:8px;font-size:14px;font-family:inherit;resize:vertical"></textarea>
       <div class="modal-actions">
-        <button class="btn-cancel" onclick="document.getElementById('tp-modal').remove()">Cancelar</button>
+        <button class="btn-cancel" onclick="cleanupMap('tp-map');document.getElementById('tp-modal').remove()">Cancelar</button>
         <button class="btn btn-primary" onclick="createTouristPoint()">Crear punto</button>
       </div>
     </div>
   `;
   document.body.appendChild(overlay);
+  window.tpMap = initMapPicker('tp-map', 'tp-lat', 'tp-lng');
 }
 
 async function createTouristPoint() {
@@ -368,10 +470,12 @@ async function createTouristPoint() {
   const is_free = document.getElementById('tp-free').checked;
   const tips = document.getElementById('tp-tips').value;
   const priority = parseInt(document.getElementById('tp-priority').value);
-  if (!name || !category || !latitude || !longitude) { showToast('Completá los campos requeridos (*)', 'error'); return; }
+  const photos = window.tpPhotos || [];
+  if (!name || !category || isNaN(latitude) || isNaN(longitude)) { showToast('Completá nombre, categoría, y hacé clic en el mapa o resolvé un link de Google Maps', 'error'); return; }
   try {
-    await api('/api/admin/tourist-points', { method: 'POST', body: JSON.stringify({ name, category, description, latitude, longitude, priority, address: address || undefined, website: website || undefined, importance, season, estimated_duration_minutes, is_free, tips: tips || undefined }) });
+    await api('/api/admin/tourist-points', { method: 'POST', body: JSON.stringify({ name, category, description, latitude, longitude, priority, photos, address: address || undefined, website: website || undefined, importance, season, estimated_duration_minutes, is_free, tips: tips || undefined }) });
     showToast('Punto turístico creado');
+    cleanupMap('tp-map');
     document.getElementById('tp-modal').remove();
     state.touristPoints = await api('/api/admin/tourist-points');
     renderContent();

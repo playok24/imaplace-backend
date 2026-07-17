@@ -37,7 +37,19 @@ TaskManager.defineTask(BACKGROUND_LOCATION_TASK, async (taskData: any) => {
         content: {
           title: '📍 Comercio cercano',
           body: `${biz.name} está a ${Math.round(biz.distance)}m de distancia.`,
-          data: { businessId: biz.id, lat: biz.lat, lng: biz.lng, name: biz.name },
+          data: { type: 'business', id: biz.id, lat: biz.lat, lng: biz.lng, name: biz.name },
+          ...(Platform.OS === 'android' ? { channelId: 'nearby-business' } : {}),
+        },
+        trigger: null,
+      });
+    }
+    if (result.nearbyTouristPoints?.length > 0) {
+      const tp = result.nearbyTouristPoints[0];
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: '📍 Punto turístico cercano',
+          body: `${tp.name} está a ${Math.round(tp.distance)}m de distancia.`,
+          data: { type: 'tourist_point', id: tp.id, lat: tp.lat, lng: tp.lng, name: tp.name },
           ...(Platform.OS === 'android' ? { channelId: 'nearby-business' } : {}),
         },
         trigger: null,

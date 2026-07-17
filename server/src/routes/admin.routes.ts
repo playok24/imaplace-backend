@@ -44,22 +44,24 @@ router.get('/businesses', async (_req, res) => {
 
 router.post('/businesses', async (req, res) => {
   try {
-    const { name, category, latitude, longitude, address, phone, website, owner_id, priority } = req.body;
-    if (!name || !category || !latitude || !longitude || !owner_id) {
-      return res.status(400).json({ error: 'Campos requeridos: name, category, latitude, longitude, owner_id' });
+    const { name, category, latitude, longitude, address, phone, website, photos, owner_id, priority } = req.body;
+    if (!name || !category || !latitude || !longitude) {
+      return res.status(400).json({ error: 'Campos requeridos: name, category, latitude, longitude' });
     }
-    const ownerCheck = await query('SELECT id, role FROM users WHERE id = $1', [owner_id]);
-    if (ownerCheck.rows.length === 0) {
-      return res.status(400).json({ error: 'Usuario dueño no encontrado' });
-    }
-    if (ownerCheck.rows[0].role !== 'business_owner') {
-      return res.status(400).json({ error: 'El dueño debe tener rol business_owner' });
+    if (owner_id) {
+      const ownerCheck = await query('SELECT id, role FROM users WHERE id = $1', [owner_id]);
+      if (ownerCheck.rows.length === 0) {
+        return res.status(400).json({ error: 'Usuario dueño no encontrado' });
+      }
+      if (ownerCheck.rows[0].role !== 'business_owner') {
+        return res.status(400).json({ error: 'El dueño debe tener rol business_owner' });
+      }
     }
     const result = await query(
-      `INSERT INTO businesses (name, category, latitude, longitude, address, phone, website, owner_id, is_active, priority)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, TRUE, $9)
-       RETURNING id, name, category, latitude, longitude, address, phone, website, owner_id, is_active, priority, created_at`,
-      [name, category, latitude, longitude, address || null, phone || null, website || null, owner_id, priority ?? 5]
+      `INSERT INTO businesses (name, category, latitude, longitude, address, phone, website, photos, owner_id, is_active, priority)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, TRUE, $10)
+       RETURNING id, name, category, latitude, longitude, address, phone, website, photos, owner_id, is_active, priority, created_at`,
+      [name, category, latitude, longitude, address || null, phone || null, website || null, photos || [], owner_id || null, priority ?? 5]
     );
     res.status(201).json(result.rows[0]);
   } catch (err: any) {
@@ -103,15 +105,15 @@ router.get('/tourist-points', async (_req, res) => {
 
 router.post('/tourist-points', async (req, res) => {
   try {
-    const { name, description, category, latitude, longitude, address, website, importance, estimated_duration_minutes, season, is_free, tips, priority } = req.body;
+    const { name, description, category, latitude, longitude, address, website, importance, estimated_duration_minutes, season, is_free, tips, priority, photos } = req.body;
     if (!name || !category || latitude == null || longitude == null) {
       return res.status(400).json({ error: 'Campos requeridos: name, category, latitude, longitude' });
     }
     const result = await query(
-      `INSERT INTO tourist_points (name, description, category, latitude, longitude, address, website, importance, estimated_duration_minutes, season, is_free, tips, priority)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+      `INSERT INTO tourist_points (name, description, category, latitude, longitude, address, website, importance, estimated_duration_minutes, season, is_free, tips, priority, photos)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
        RETURNING *`,
-      [name, description || null, category, latitude, longitude, address || null, website || null, importance || 'medium', estimated_duration_minutes || null, season || null, is_free ?? true, tips || null, priority ?? 5]
+      [name, description || null, category, latitude, longitude, address || null, website || null, importance || 'medium', estimated_duration_minutes || null, season || null, is_free ?? true, tips || null, priority ?? 5, photos || []]
     );
     res.status(201).json(result.rows[0]);
   } catch (err: any) {
