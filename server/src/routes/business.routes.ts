@@ -9,17 +9,35 @@ const router = Router();
 router.get('/', businessController.list);
 router.get('/:id', businessController.getById);
 
-// Public: active tourist points with priority
-router.get('/tourist-points/list', async (_req, res) => {
+// Public: active tourist points with optional distance filter
+router.get('/tourist-points/list', async (req, res) => {
   try {
-    const result = await query(
-      `SELECT id, name, description, category, latitude, longitude, address, photos, website,
-              importance, estimated_duration_minutes, season, is_free, tips, is_active, priority
-       FROM tourist_points
-       WHERE is_active = TRUE
-       ORDER BY priority ASC NULLS LAST, name ASC`
-    );
-    res.json(result.rows);
+    const { lat, lng, radius } = req.query;
+    const hasCoords = lat != null && lng != null;
+    const radiusMeters = parseInt(radius as string) || 10000;
+
+    if (hasCoords) {
+      const result = await query(
+        `SELECT id, name, description, category, latitude, longitude, address, photos, website,
+                importance, estimated_duration_minutes, season, is_free, tips, is_active, priority,
+                ROUND(haversine_distance($1, $2, latitude, longitude)) AS distance
+         FROM tourist_points
+         WHERE is_active = TRUE
+           AND haversine_distance($1, $2, latitude, longitude) <= $3
+         ORDER BY priority ASC NULLS LAST, distance ASC`,
+        [parseFloat(lat as string), parseFloat(lng as string), radiusMeters]
+      );
+      res.json(result.rows);
+    } else {
+      const result = await query(
+        `SELECT id, name, description, category, latitude, longitude, address, photos, website,
+                importance, estimated_duration_minutes, season, is_free, tips, is_active, priority
+         FROM tourist_points
+         WHERE is_active = TRUE
+         ORDER BY priority ASC NULLS LAST, name ASC`
+      );
+      res.json(result.rows);
+    }
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

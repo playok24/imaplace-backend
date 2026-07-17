@@ -1,4 +1,4 @@
-import { StyleSheet, View, TouchableOpacity } from 'react-native';
+import { StyleSheet, View, TouchableOpacity, Text } from 'react-native';
 import {
   Map,
   Camera,
@@ -8,12 +8,13 @@ import {
   Layer,
 } from '@maplibre/maplibre-react-native';
 import { MAP_STYLE } from '../constants/Api';
-import { Business } from '../types';
+import { Business, TouristPoint } from '../types';
 
 const DEFAULT_CENTER = { lng: -58.3816, lat: -34.6037 };
 
 interface Props {
   businesses?: Business[];
+  touristPoints?: TouristPoint[];
   routeGeoJSON?: any;
   selectedLocation?: { lat: number; lng: number };
   originCoords?: { lat: number; lng: number };
@@ -21,6 +22,7 @@ interface Props {
   initialCenter?: { lat: number; lng: number };
   onMapPress?: (lat: number, lng: number) => void;
   onMarkerPress?: (business: Business) => void;
+  onTouristPointPress?: (point: TouristPoint) => void;
   showsUserLocation?: boolean;
   onDidLoad?: () => void;
   style?: any;
@@ -28,6 +30,7 @@ interface Props {
 
 export default function MapViewWrapper({
   businesses = [],
+  touristPoints = [],
   routeGeoJSON,
   selectedLocation,
   originCoords,
@@ -35,6 +38,7 @@ export default function MapViewWrapper({
   initialCenter,
   onMapPress,
   onMarkerPress,
+  onTouristPointPress,
   showsUserLocation = false,
   onDidLoad,
   style,
@@ -45,6 +49,11 @@ export default function MapViewWrapper({
     const [lng, lat] = e.nativeEvent.lngLat;
     onMapPress(lat, lng);
   };
+
+  const sortedMarkers = [
+    ...touristPoints.map((p) => ({ type: 'tourist' as const, data: p })),
+    ...businesses.map((b) => ({ type: 'business' as const, data: b })),
+  ].sort((a, b) => (b.data.priority ?? 5) - (a.data.priority ?? 5));
 
   return (
     <View style={[styles.container, style]}>
@@ -62,21 +71,44 @@ export default function MapViewWrapper({
 
         {showsUserLocation && <UserLocation />}
 
-        {businesses.map((b) => (
-          <Marker
-            key={b.id}
-            id={b.id}
-            lngLat={[b.location.lng, b.location.lat]}
-            anchor="bottom"
-          >
-            <TouchableOpacity
-              style={styles.marker}
-              onPress={() => onMarkerPress?.(b)}
+        {sortedMarkers.map((item) => {
+          if (item.type === 'business') {
+            const b = item.data as Business;
+            return (
+              <Marker
+                key={`biz-${b.id}`}
+                id={`biz-${b.id}`}
+                lngLat={[b.location.lng, b.location.lat]}
+                anchor="bottom"
+              >
+                <TouchableOpacity
+                  style={styles.marker}
+                  onPress={() => onMarkerPress?.(b)}
+                >
+                  <View style={styles.markerDot} />
+                </TouchableOpacity>
+                <Text style={styles.markerLabel}>{b.name}</Text>
+              </Marker>
+            );
+          }
+          const p = item.data as TouristPoint;
+          return (
+            <Marker
+              key={`tp-${p.id}`}
+              id={`tp-${p.id}`}
+              lngLat={[p.location.lng, p.location.lat]}
+              anchor="bottom"
             >
-              <View style={styles.markerDot} />
-            </TouchableOpacity>
-          </Marker>
-        ))}
+              <TouchableOpacity
+                style={styles.touristMarker}
+                onPress={() => onTouristPointPress?.(p)}
+              >
+                <View style={styles.touristMarkerDot} />
+              </TouchableOpacity>
+              <Text style={styles.touristMarkerLabel}>{p.name}</Text>
+            </Marker>
+          );
+        })}
 
         {selectedLocation && (
           <Marker
@@ -145,6 +177,49 @@ const styles = StyleSheet.create({
     height: 8,
     borderRadius: 4,
     backgroundColor: 'white',
+  },
+  touristMarker: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#FF9800',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 3,
+    borderColor: 'white',
+    elevation: 3,
+  },
+  touristMarkerDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: 'white',
+  },
+  markerLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#fff',
+    backgroundColor: 'rgba(74,144,217,0.9)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    textAlign: 'center',
+    marginTop: 2,
+    overflow: 'hidden',
+    maxWidth: 120,
+  },
+  touristMarkerLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#fff',
+    backgroundColor: 'rgba(255,152,0,0.9)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    textAlign: 'center',
+    marginTop: 2,
+    overflow: 'hidden',
+    maxWidth: 120,
   },
   selectedMarker: {
     width: 28,

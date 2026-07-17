@@ -1,5 +1,5 @@
 import api from './api';
-import { Business, BusinessFormData } from '../types';
+import { Business, BusinessFormData, TouristPoint } from '../types';
 
 export async function getActiveBusinesses(): Promise<Business[]> {
   const { data } = await api.get('/api/businesses');
@@ -26,7 +26,16 @@ export async function updateBusiness(id: string, input: Partial<BusinessFormData
   return data;
 }
 
-export async function updateLocation(latitude: number, longitude: number): Promise<{ nearby: Business[] }> {
+export async function updateLocation(latitude: number, longitude: number): Promise<{ nearby: Business[]; nearbyTouristPoints: TouristPoint[] }> {
   const { data } = await api.post('/api/location/update', { latitude, longitude });
+  return data;
+}
+
+export async function getActiveTouristPoints(lat?: number, lng?: number): Promise<TouristPoint[]> {
+  let url = '/api/businesses/tourist-points/list';
+  if (lat != null && lng != null) {
+    url += `?lat=${lat}&lng=${lng}&radius=10000`;
+  }
+  const { data } = await api.get(url);
   return data;
 }

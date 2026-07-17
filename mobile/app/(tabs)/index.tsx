@@ -61,10 +61,14 @@ export default function MapScreen() {
         const { status } = await Location.requestForegroundPermissionsAsync();
         if (status !== 'granted') return;
 
+        const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+        const { latitude: myLat, longitude: myLng } = loc.coords;
+        setLocation(myLat, myLng);
+
         try {
           const [bizData, tpData] = await Promise.all([
             businessService.getActiveBusinesses(),
-            businessService.getActiveTouristPoints(),
+            businessService.getActiveTouristPoints(myLat, myLng),
           ]);
           setBusinesses(bizData);
           setTouristPoints(tpData.map((p) => ({ ...p, location: { lat: p.latitude, lng: p.longitude } })));
