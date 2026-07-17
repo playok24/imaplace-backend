@@ -5,28 +5,32 @@ import * as Location from 'expo-location';
 import MapViewWrapper from '../../components/MapViewWrapper';
 import BusinessPopup from '../../components/BusinessPopup';
 import DrivingAlertOverlay from '../../components/DrivingAlertOverlay';
+import TouristPointPopup from '../../components/TouristPointPopup';
 import { useAuthStore } from '../../stores/authStore';
 import { useLocationStore } from '../../stores/locationStore';
 import { useDrivingStore } from '../../stores/drivingStore';
 import { useRoutingStore } from '../../stores/routingStore';
 import * as businessService from '../../services/business';
 import * as socketService from '../../services/socket';
-import { Business, NearbyBusiness } from '../../types';
+import { Business, NearbyBusiness, NearbyTouristPoint, TouristPoint } from '../../types';
 
 export default function MapScreen() {
   const user = useAuthStore((s) => s.user);
-  const { latitude, longitude, nearbyBusinesses, setLocation, addNearbyBusiness, setTracking } = useLocationStore();
+  const { latitude, longitude, setLocation, addNearbyBusiness, addNearbyTouristPoint, setTracking } = useLocationStore();
   const isDriving = useDrivingStore((s) => s.isDriving);
   const { setOrigin, setDestination } = useRoutingStore.getState();
   const [businesses, setBusinesses] = useState<Business[]>([]);
+  const [touristPoints, setTouristPoints] = useState<TouristPoint[]>([]);
   const [selectedBusiness, setSelectedBusiness] = useState<NearbyBusiness | null>(null);
+  const [selectedTouristPoint, setSelectedTouristPoint] = useState<(NearbyTouristPoint | TouristPoint) | null>(null);
   const [drivingAlert, setDrivingAlert] = useState<NearbyBusiness | null>(null);
+  const [drivingTouristAlert, setDrivingTouristAlert] = useState<NearbyTouristPoint | null>(null);
   const [mapReady, setMapReady] = useState(false);
 
   useEffect(() => {
     if (!user) return;
     const socket = socketService.connectSocket(user.id);
-    const unsubscribe = socketService.onBusinessNearby((business) => {
+    const unsubBiz = socketService.onBusinessNearby((business) => {
       addNearbyBusiness(business);
       if (isDriving) {
         setDrivingAlert(business);
@@ -34,8 +38,17 @@ export default function MapScreen() {
         setSelectedBusiness(business);
       }
     });
+    const unsubTp = socketService.onTouristPointNearby((point) => {
+      addNearbyTouristPoint(point);
+      if (isDriving) {
+        setDrivingTouristAlert(point);
+      } else {
+        setSelectedTouristPoint(point);
+      }
+    });
     return () => {
-      unsubscribe();
+      unsubBiz();
+      unsubTp();
       socketService.disconnectSocket();
     };
   }, [user?.id, isDriving]);
@@ -49,8 +62,12 @@ export default function MapScreen() {
         if (status !== 'granted') return;
 
         try {
-          const data = await businessService.getActiveBusinesses();
-          setBusinesses(data);
+          const [bizData, tpData] = await Promise.all([
+            businessService.getActiveBusinesses(),
+            businessService.getActiveTouristPoints(),
+          ]);
+          setBusinesses(bizData);
+          setTouristPoints(tpData.map((p) => ({ ...p, location: { lat: p.latitude, lng: p.longitude } })));
         } catch {}
 
         setTracking(true);
@@ -72,6 +89,13 @@ export default function MapScreen() {
                   setSelectedBusiness(result.nearby[0] as NearbyBusiness);
                 }
               }
+              if (result.nearbyTouristPoints?.length > 0) {
+                if (isDriving) {
+                  setDrivingTouristAlert(result.nearbyTouristPoints[0] as NearbyTouristPoint);
+                } else {
+                  setSelectedTouristPoint(result.nearbyTouristPoints[0] as NearbyTouristPoint);
+                }
+              }
             } catch {}
           }
         );
@@ -88,6 +112,10 @@ export default function MapScreen() {
     setSelectedBusiness({ ...business, distance: 0 });
   };
 
+  const handleTouristPointPress = (point: TouristPoint) => {
+    setSelectedTouristPoint(point);
+  };
+
   const handleViewDetails = (id: string) => {
     router.push(`/business/${id}`);
   };
@@ -101,17 +129,24 @@ export default function MapScreen() {
   };
 
   const handleDrivingNavigate = () => {
-    if (!drivingAlert) return;
-    handleNavigate(drivingAlert.lat, drivingAlert.lng, drivingAlert.name);
+    if (!drivingAlert && !drivingTouristAlert) return;
+    const target = drivingAlert || drivingTouristAlert;
+    if (target) {
+      handleNavigate('lat' in target ? target.lat : target.latitude, 'lng' in target ? target.lng : target.longitude, target.name);
+    }
   };
 
   const { toggleDriving } = useDrivingStore.getState();
+
+  const effectiveDrivingAlert = drivingAlert || drivingTouristAlert;
 
   return (
     <View style={styles.container}>
       <MapViewWrapper
         businesses={businesses}
+        touristPoints={touristPoints}
         onMarkerPress={handleMarkerPress}
+        onTouristPointPress={handleTouristPointPress}
         showsUserLocation
         onDidLoad={() => setMapReady(true)}
         initialCenter={latitude && longitude ? { lat: latitude, lng: longitude } : undefined}
@@ -127,10 +162,15 @@ export default function MapScreen() {
         onViewDetails={handleViewDetails}
         onNavigate={handleNavigate}
       />
-      {isDriving && drivingAlert && (
+      <TouristPointPopup
+        point={selectedTouristPoint}
+        onClose={() => setSelectedTouristPoint(null)}
+        onNavigate={handleNavigate}
+      />
+      {isDriving && effectiveDrivingAlert && (
         <DrivingAlertOverlay
-          business={drivingAlert}
-          onDismiss={() => setDrivingAlert(null)}
+          business={effectiveDrivingAlert}
+          onDismiss={() => { setDrivingAlert(null); setDrivingTouristAlert(null); }}
           onNavigate={handleDrivingNavigate}
         />
       )}

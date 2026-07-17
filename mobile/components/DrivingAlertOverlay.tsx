@@ -2,10 +2,12 @@ import { useEffect, useRef } from 'react';
 import { Animated, StyleSheet, TouchableOpacity, Platform, Vibration, View } from 'react-native';
 import { Text, Card, Button } from 'react-native-paper';
 import * as Speech from 'expo-speech';
-import { NearbyBusiness } from '../types';
+import { NearbyBusiness, NearbyTouristPoint } from '../types';
+
+type NearbyEntity = NearbyBusiness | NearbyTouristPoint;
 
 interface Props {
-  business: NearbyBusiness | null;
+  business: NearbyEntity | null;
   onDismiss: () => void;
   onNavigate: () => void;
 }
